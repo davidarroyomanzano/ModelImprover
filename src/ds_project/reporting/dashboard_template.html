@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__</title>
+<style>
+:root{--bg:#f4f6f9;--card:#fff;--ink:#1f2937;--mut:#6b7280;--ok:#16a34a;--bad:#dc2626;--acc:#2563eb;--line:#e5e7eb}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.45 Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--ink)}
+header{background:#111827;color:#fff;padding:12px 20px;display:flex;flex-wrap:wrap;gap:16px;align-items:baseline}
+header h1{font-size:18px;margin:0}header span{color:#9ca3af;font-size:12px}
+.layout{display:flex;align-items:flex-start}
+aside{width:290px;flex:none;position:sticky;top:0;max-height:100vh;overflow:auto;background:var(--card);border-right:1px solid var(--line);padding:14px}
+main{flex:1;min-width:0;padding:14px 18px}
+aside h3{margin:0 0 4px;font-size:14px}aside p{margin:0 0 10px;color:var(--mut);font-size:12px}
+.sl{margin:10px 0}.sl label{display:flex;justify-content:space-between;font-weight:600;font-size:12px}
+.sl input[type=range]{width:100%}
+.tabs{display:flex;gap:4px;border-bottom:2px solid var(--line);margin-bottom:12px;flex-wrap:wrap}
+.tabs button{border:0;background:none;padding:8px 14px;cursor:pointer;font-size:14px;color:var(--mut);border-bottom:3px solid transparent;margin-bottom:-2px}
+.tabs button.on{color:var(--acc);border-color:var(--acc);font-weight:600}
+.tab{display:none}.tab.on{display:block}
+.grid{display:grid;gap:12px}.g2{grid-template-columns:repeat(auto-fit,minmax(420px,1fr))}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px}
+.card h4{margin:0 0 6px;font-size:13px;color:var(--mut);text-transform:uppercase;letter-spacing:.03em}
+.kpi .v{font-size:24px;font-weight:700}.kpi .s{color:var(--mut);font-size:12px}
+.ok{color:var(--ok)}.bad{color:var(--bad)}.mut{color:var(--mut)}
+table{border-collapse:collapse;width:100%;font-size:12px}
+th,td{padding:4px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+tbody tr.row{cursor:pointer}tbody tr.row:hover{background:#eff6ff}tr.sel{background:#dbeafe}
+.tblwrap{overflow:auto;max-height:340px}
+select,input[type=number]{padding:3px 6px;border:1px solid #d1d5db;border-radius:4px}
+.row2{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:6px;font-size:12px}
+.pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:600}
+.pill.ok{background:#dcfce7}.pill.bad{background:#fee2e2}
+.note{background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:8px 10px;font-size:12px;margin:8px 0}
+.chart{width:100%}
+</style>
+</head>
+<body>
+<header><h1>__TITLE__</h1><span id="hmeta"></span></header>
+<div class="layout">
+<aside id="side">
+  <h3>Limites de negocio</h3>
+  <p>Mueve los controles: todas las vistas se recalculan. Una combinacion es <b>factible</b> si cumple todos los limites.</p>
+  <div class="sl"><label>Ventana maxima (latencia) <span id="v_win"></span></label><input type="range" id="s_win"></div>
+  <div class="sl"><label>Tamano maximo del modelo <span id="v_size"></span></label><input type="range" id="s_size"></div>
+  <div class="sl"><label>Computo maximo (Mops/s est.) <span id="v_mops"></span></label><input type="range" id="s_mops"></div>
+  <div class="sl"><label>Precision minima (validacion) <span id="v_min"></span></label><input type="range" id="s_min"></div>
+  <hr>
+  <div class="sl"><label>Falsas alarmas maximas <span id="v_fa"></span></label><input type="range" id="s_fa" min="0" max="0.5" step="0.005"></div>
+  <p>Aplica al modelo final con los datos de test (pestana Rendimiento).</p>
+  <hr>
+  <h3>Filtros</h3>
+  <div id="phasebox"></div>
+  <label><input type="checkbox" id="c_pruned"> Mostrar trials podados/fallidos</label>
+  <p style="margin-top:8px">En las coordenadas paralelas puedes arrastrar sobre un eje para filtrar un rango; el resto de vistas se actualiza.</p>
+  <button id="b_reset">Quitar filtros de rango</button>
+</aside>
+<main>
+<div class="tabs" id="tabs"></div>
+
+<section class="tab" id="tab_resumen">
+  <div class="kpis" id="kp_sum"></div>
+  <div class="grid g2">
+    <div class="card"><h4>Modelo final</h4><div id="final_card"></div></div>
+    <div class="card"><h4>Como leer este cuadro</h4><div id="help"></div></div>
+  </div>
+  <div class="card" style="margin-top:12px"><h4>Curvas de entrenamiento</h4><div id="ch_hist" class="chart"></div></div>
+</section>
+
+<section class="tab" id="tab_explorer">
+  <div class="kpis" id="kp_exp"></div>
+  <div class="card">
+    <div class="row2">Eje X <select id="sel_x"></select> Eje Y <select id="sel_y"></select>
+      <span class="mut">Clic en un punto para ver el detalle. Linea: frente de Pareto de las factibles.</span></div>
+    <div id="ch_scatter" class="chart"></div>
+  </div>
+  <div class="card" style="margin-top:12px"><h4>Coordenadas paralelas (trials que cumplen los sliders)</h4><div id="ch_par" class="chart"></div></div>
+  <div class="grid g2" style="margin-top:12px">
+    <div class="card"><h4>Mejores combinaciones factibles</h4><div class="tblwrap" id="tbl_top"></div></div>
+    <div class="card"><h4>Detalle de la combinacion</h4><div id="detail" class="tblwrap"></div></div>
+  </div>
+</section>
+
+<section class="tab" id="tab_perf">
+  <div class="row2">Origen de las metricas <select id="sel_src"></select>
+    <span id="src_note" class="mut"></span></div>
+  <div class="kpis" id="kp_perf"></div>
+  <div class="grid g2">
+    <div class="card"><h4>Matriz de confusion <label style="font-weight:400"><input type="checkbox" id="c_norm" checked> % por fila</label></h4><div id="ch_cm" class="chart"></div></div>
+    <div class="card"><h4>Precision / recall / F1 por clase</h4><div id="ch_cls" class="chart"></div></div>
+  </div>
+  <div class="card" style="margin-top:12px" id="op_card">
+    <h4>Punto de operacion: falsas alarmas frente a detecciones</h4>
+    <div class="row2">Clase normal <select id="sel_normal"></select>
+      Nivel <select id="sel_level"><option value="seg">Segmento</option><option value="file">Fichero</option></select>
+      Umbral de alarma <input type="range" id="s_thr" min="0.01" max="0.99" step="0.01" value="0.5" style="width:200px"> <b id="v_thr"></b></div>
+    <div class="kpis" id="kp_op"></div>
+    <div class="grid g2"><div id="ch_op" class="chart"></div><div id="ch_det" class="chart"></div></div>
+  </div>
+  <div class="card" style="margin-top:12px" id="worst_card"><h4>Ficheros con mas errores (test)</h4><div class="tblwrap" id="tbl_worst"></div></div>
+</section>
+
+<section class="tab" id="tab_params">
+  <div class="grid g2">
+    <div class="card"><h4>Importancia de hiperparametros</h4><div id="ch_imp" class="chart"></div></div>
+    <div class="card"><h4>Parametro frente a resultado</h4>
+      <div class="row2">Parametro <select id="sel_p"></select></div><div id="ch_param" class="chart"></div></div>
+  </div>
+  <div class="grid g2" style="margin-top:12px">
+    <div class="card"><h4>Bloques MFE del modelo final</h4><div id="tbl_mfe"></div></div>
+    <div class="card"><h4>Parametros de la red final</h4><div id="tbl_net"></div></div>
+  </div>
+</section>
+
+<section class="tab" id="tab_data">
+  <div class="grid g2">
+    <div class="card"><h4>Ficheros por clase</h4><div id="ch_files" class="chart"></div></div>
+    <div class="card"><h4>Segundos / segmentos de test por clase</h4><div id="ch_secs" class="chart"></div></div>
+  </div>
+  <div class="note" id="data_note"></div>
+</section>
+</main>
+</div>
+
+<script id="data" type="application/json">__DATA_JSON__</script>
+<script>__PLOTLY_JS__</script>
+<script>
+(function(){
+"use strict";
+var D=JSON.parse(document.getElementById('data').textContent);
+var $=function(id){return document.getElementById(id)};
+var T=D.trials, E=D.evaluation, LB=D.labels;
+var CFG={responsive:true,displaylogo:false};
+var NUMKEYS=[["window_s","Ventana (s)"],["size_kb","Tamano modelo (KB)"],["mops","Computo total (Mops/s)"],["dsp_mops","Computo DSP (Mops/s)"],["net_mops","Computo red (Mops/s)"],["n_params","Parametros de la red"],["dur","Duracion trial (s)"],["value","Precision validacion"]];
+var LABELS={};NUMKEYS.forEach(function(k){LABELS[k[0]]=k[1]});
+var S={win:0,size:0,mops:0,min:0,fa:D.limits.max_false_alarm,phases:{},pruned:false,ranges:{},sel:null,thr:0.5};
+
+function val(t,k){
+  if(k==="value")return t.value;
+  if(k==="dur")return t.dur;
+  if(t.d&&t.d[k]!==undefined)return t.d[k];
+  if(t.params&&t.params[k]!==undefined&&typeof t.params[k]==="number")return t.params[k];
+  return null;
+}
+function fmt(x,n){if(x===null||x===undefined||isNaN(x))return "-";n=n===undefined?3:n;return Number(x).toFixed(n)}
+function pct(x){return x===null||x===undefined?"-":(100*x).toFixed(1)+"%"}
+function done(t){return t.state==="COMPLETE"&&t.value!==null}
+function reasons(t){
+  var r=[],d=t.d||{};
+  if(d.window_s!==undefined&&d.window_s>S.win+1e-9)r.push("ventana "+fmt(d.window_s,2)+" s > "+fmt(S.win,2)+" s");
+  if(d.size_kb!==undefined&&d.size_kb>S.size+1e-9)r.push("tamano "+fmt(d.size_kb,0)+" KB > "+fmt(S.size,0)+" KB");
+  if(d.mops!==undefined&&d.mops>S.mops+1e-9)r.push("computo "+fmt(d.mops,0)+" > "+fmt(S.mops,0)+" Mops/s");
+  if(t.value!==null&&t.value<S.min-1e-9)r.push("precision "+pct(t.value)+" < "+pct(S.min));
+  return r;
+}
+function inRanges(t){
+  for(var k in S.ranges){
+    var rs=S.ranges[k];if(!rs||!rs.length)continue;
+    var v=val(t,k);if(v===null)return false;
+    var ok=false;for(var i=0;i<rs.length;i++){if(v>=rs[i][0]&&v<=rs[i][1])ok=true}
+    if(!ok)return false;
+  }
+  return true;
+}
+function visible(t){
+  if(!S.phases[t.phase])return false;
+  return S.pruned||done(t);
+}
+function feasible(t){return done(t)&&reasons(t).length===0&&inRanges(t)}
+
+/* ---------- Controles ---------- */
+function range(k){
+  var v=T.map(function(t){return val(t,k)}).filter(function(x){return x!==null});
+  return v.length?[Math.min.apply(null,v),Math.max.apply(null,v)]:[0,1];
+}
+function setupSlider(id,vid,lo,hi,step,init,f){
+  var s=$(id);s.min=lo;s.max=hi;s.step=step;s.value=init;
+  var upd=function(){$(vid).textContent=f(+s.value)};upd();return s;
+}
+function setup(){
+  var w=range("window_s"),z=range("size_kb"),m=range("mops");
+  var L=D.limits;
+  S.win=Math.max(L.max_window_s,0);S.size=L.max_size_kb;S.mops=L.max_mops;S.min=0;
+  var wmax=Math.max(w[1],S.win)*1.05||1,zmax=Math.max(z[1],S.size)*1.05||1,mmax=Math.max(m[1],S.mops)*1.05||1;
+  var vmax=range("value")[1]||1;
+  var defs=[["s_win","v_win",0.1,wmax,0.05,S.win,function(x){return fmt(x,2)+" s"},"win"],
+   ["s_size","v_size",0,zmax,10,S.size,function(x){return fmt(x,0)+" KB"},"size"],
+   ["s_mops","v_mops",0,mmax,1,S.mops,function(x){return fmt(x,0)},"mops"],
+   ["s_min","v_min",0,1,0.005,0,function(x){return pct(x)},"min"],
+   ["s_fa","v_fa",0,0.5,0.005,S.fa,function(x){return pct(x)},"fa"]];
+  defs.forEach(function(d){
+    var s=setupSlider(d[0],d[1],d[2],d[3],d[4],d[5],d[6]);
+    s.addEventListener("input",function(){S[d[7]]=+s.value;$(d[1]).textContent=d[6](+s.value);refresh(d[7]==="fa"?"op":"all")});
+  });
+  if(!T.some(function(t){return t.d&&t.d.window_s!==undefined}))$("side").style.display="none";
+  var phases=[];T.forEach(function(t){if(phases.indexOf(t.phase)<0)phases.push(t.phase)});
+  var names={joint:"Busqueda conjunta",dsp:"Fase 1 (DSP)",net:"Fase 2 (red)"};
+  var box=$("phasebox");
+  phases.forEach(function(p){
+    S.phases[p]=true;
+    var l=document.createElement("label");l.style.display="block";
+    l.innerHTML='<input type="checkbox" checked> '+names[p];
+    l.firstChild.addEventListener("change",function(e){S.phases[p]=e.target.checked;refresh("all")});
+    box.appendChild(l);
+  });
+  $("c_pruned").addEventListener("change",function(e){S.pruned=e.target.checked;refresh("all")});
+  $("b_reset").addEventListener("click",function(){S.ranges={};refresh("all")});
+  var vm=document.createElement("span");
+  $("s_min").max=Math.max(vmax,0.01);
+}
+
+/* ---------- Pestanas ---------- */
+var TABS=[["resumen","Resumen"],["explorer","Explorador de combinaciones"],["perf","Rendimiento"],["params","Parametros"],["data","Datos"]];
+function tabs(){
+  var el=$("tabs");
+  TABS.forEach(function(t,i){
+    var b=document.createElement("button");b.textContent=t[1];b.dataset.t=t[0];
+    b.addEventListener("click",function(){show(t[0])});el.appendChild(b);
+  });
+  show("resumen");
+}
+function show(name){
+  document.querySelectorAll(".tabs button").forEach(function(b){b.classList.toggle("on",b.dataset.t===name)});
+  document.querySelectorAll(".tab").forEach(function(s){s.classList.toggle("on",s.id==="tab_"+name)});
+  $("side").style.display=(name==="explorer"||name==="perf")&&T.length?"":"none";
+  setTimeout(function(){document.querySelectorAll(".tab.on .chart").forEach(function(c){try{Plotly.Plots.resize(c)}catch(e){}})},30);
+  if(name==="explorer")drawParallel();
+}
+
+/* ---------- Helpers de tabla ---------- */
+function table(head,rows,cls){
+  var h="<table><thead><tr>"+head.map(function(x){return "<th>"+x+"</th>"}).join("")+"</tr></thead><tbody>";
+  rows.forEach(function(r){h+="<tr "+(r.attr||"")+">"+r.cells.map(function(c){return "<td>"+c+"</td>"}).join("")+"</tr>"});
+  return h+"</tbody></table>";
+}
+function kpi(t,v,s,c){return '<div class="card kpi"><h4>'+t+'</h4><div class="v '+(c||"")+'">'+v+'</div><div class="s">'+(s||"")+'</div></div>'}
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;")}
+
+/* ---------- Explorador ---------- */
+function summaryOf(t){
+  var d=t.d||{};
+  return "ventana "+fmt(d.window_s,2)+" s, "+fmt(d.size_kb,0)+" KB, "+fmt(d.mops,0)+" Mops/s";
+}
+function explorer(){
+  var vis=T.filter(visible),feas=vis.filter(feasible);
+  var comp=T.filter(function(t){return done(t)&&S.phases[t.phase]});
+  var bestAll=null,bestF=null;
+  comp.forEach(function(t){if(!bestAll||t.value>bestAll.value)bestAll=t});
+  feas.forEach(function(t){if(!bestF||t.value>bestF.value)bestF=t});
+  var cost=bestAll&&bestF?bestAll.value-bestF.value:null;
+  $("kp_exp").innerHTML=
+    kpi("Trials evaluados",comp.length,"con los filtros de fase")+
+    kpi("Factibles",feas.length,pct(comp.length?feas.length/comp.length:0)+" del total",feas.length?"ok":"bad")+
+    kpi("Mejor factible",bestF?pct(bestF.value):"ninguna",bestF?"trial "+bestF.n+": "+summaryOf(bestF):"relaja algun limite",bestF?"ok":"bad")+
+    kpi("Mejor sin limites",bestAll?pct(bestAll.value):"-",bestAll?"trial "+bestAll.n+": "+summaryOf(bestAll):"")+
+    kpi("Coste de la factibilidad",cost===null?"-":(100*cost).toFixed(1)+" pts","precision que se pierde por cumplir los limites",cost>0.02?"bad":"");
+  scatter(vis);
+  topTable(feas);
+  detail();
+  parallelSummary();
+}
+function paretoLine(feas,xk){
+  var pts=feas.map(function(t){return [val(t,xk),t.value]}).filter(function(p){return p[0]!==null}).sort(function(a,b){return a[0]-b[0]||b[1]-a[1]});
+  var out=[],best=-Infinity;
+  pts.forEach(function(p){if(p[1]>best){best=p[1];out.push(p)}});
+  return out;
+}
+function scatter(vis){
+  var xk=$("sel_x").value,yk=$("sel_y").value;
+  var groups={ok:[],no:[],cut:[]};
+  vis.forEach(function(t){
+    if(!done(t)){groups.cut.push(t);return}
+    (feasible(t)?groups.ok:groups.no).push(t);
+  });
+  function trace(arr,name,color,sym){
+    return {type:"scattergl",mode:"markers",name:name+" ("+arr.length+")",
+      x:arr.map(function(t){var v=val(t,xk);return v===null?0:v}),
+      y:arr.map(function(t){var v=val(t,yk);return v===null?0:v}),
+      customdata:arr.map(function(t){return T.indexOf(t)}),
+      text:arr.map(function(t){return "Trial "+t.n+" ["+t.phase+"]<br>"+summaryOf(t)+"<br>precision "+pct(t.value)+(t.value===null?"<br>"+t.state:"")+(done(t)&&!feasible(t)&&reasons(t).length?"<br><i>"+reasons(t).join("; ")+"</i>":"")}),
+      hovertemplate:"%{text}<extra></extra>",marker:{color:color,size:9,symbol:sym,line:{width:1,color:"#fff"}}};
+  }
+  var data=[trace(groups.no,"No factible","#f87171","circle"),trace(groups.ok,"Factible","#16a34a","circle")];
+  if(S.pruned)data.push(trace(groups.cut,"Podado / fallido","#9ca3af","x"));
+  var p=paretoLine(groups.ok,xk);
+  if(yk==="value"&&p.length)data.push({type:"scatter",mode:"lines",name:"Frente de Pareto",x:p.map(function(a){return a[0]}),y:p.map(function(a){return a[1]}),line:{color:"#15803d",dash:"dot"},hoverinfo:"skip"});
+  var shapes=[],lim={window_s:S.win,size_kb:S.size,mops:S.mops};
+  if(lim[xk]!==undefined)shapes.push({type:"line",x0:lim[xk],x1:lim[xk],yref:"paper",y0:0,y1:1,line:{color:"#dc2626",dash:"dash"}});
+  if(yk==="value")shapes.push({type:"line",xref:"paper",x0:0,x1:1,y0:S.min,y1:S.min,line:{color:"#dc2626",dash:"dash"}});
+  else if(lim[yk]!==undefined)shapes.push({type:"line",xref:"paper",x0:0,x1:1,y0:lim[yk],y1:lim[yk],line:{color:"#dc2626",dash:"dash"}});
+  var sel=S.sel!==null?T[S.sel]:null;
+  if(sel&&val(sel,xk)!==null&&val(sel,yk)!==null)data.push({type:"scatter",mode:"markers",name:"Seleccion",x:[val(sel,xk)],y:[val(sel,yk)],marker:{size:18,color:"rgba(0,0,0,0)",line:{width:3,color:"#2563eb"}},hoverinfo:"skip"});
+  Plotly.react("ch_scatter",data,{height:430,margin:{t:10,l:60,r:10,b:50},xaxis:{title:LABELS[xk]||xk},yaxis:{title:LABELS[yk]||yk},shapes:shapes,legend:{orientation:"h",y:1.08},hovermode:"closest"},CFG);
+  var gd=$("ch_scatter");
+  if(!gd._wired){gd._wired=true;gd.on("plotly_click",function(e){var c=e.points[0].customdata;if(c!==undefined){S.sel=c;detail();scatterSel()}})}
+}
+function scatterSel(){scatter(T.filter(visible))}
+function topTable(feas){
+  var arr=feas.slice().sort(function(a,b){return b.value-a.value}).slice(0,15);
+  if(!arr.length){$("tbl_top").innerHTML='<p class="bad">Ninguna combinacion cumple los limites actuales. Relaja alguno.</p>';return}
+  $("tbl_top").innerHTML=table(["Trial","Precision","Ventana s","KB","Mops/s"],arr.map(function(t){
+    var d=t.d||{};
+    return {attr:'class="row'+(S.sel===T.indexOf(t)?" sel":"")+'" data-i="'+T.indexOf(t)+'"',cells:[t.n+" ("+t.phase+")",pct(t.value),fmt(d.window_s,2),fmt(d.size_kb,0),fmt(d.mops,0)]};
+  }));
+  $("tbl_top").querySelectorAll("tr.row").forEach(function(r){r.addEventListener("click",function(){S.sel=+r.dataset.i;detail();scatterSel();topTable(T.filter(visible).filter(feasible))})});
+}
+function detail(){
+  if(S.sel===null){
+    var b=null;T.forEach(function(t){if(feasible(t)&&(!b||t.value>b.value))b=t});
+    if(b)S.sel=T.indexOf(b);else{$("detail").innerHTML='<p class="mut">Selecciona un punto o una fila.</p>';return}
+  }
+  var t=T[S.sel],r=reasons(t);
+  var h='<p><b>Trial '+t.n+'</b> ('+t.phase+') '+(r.length?'<span class="pill bad">No factible</span>':'<span class="pill ok">Factible</span>')+'</p>';
+  if(r.length)h+='<p class="bad">'+r.join("<br>")+'</p>';
+  var rows=[["Precision de validacion",pct(t.value)],["Estado",t.state],["Duracion",fmt(t.dur,0)+" s"]];
+  var d=t.d||{};
+  [["window_s","Ventana (s)",2],["step_s","Paso (s)",2],["size_kb","Tamano modelo (KB, est.)",0],["n_params","Parametros red",0],["dsp_mops","Computo DSP (Mops/s)",1],["net_mops","Computo red (Mops/s)",1],["mops","Computo total (Mops/s)",1]].forEach(function(k){if(d[k[0]]!==undefined)rows.push([k[1],fmt(d[k[0]],k[2])])});
+  Object.keys(t.attrs||{}).forEach(function(k){rows.push([k,fmt(t.attrs[k],4)])});
+  Object.keys(t.params).forEach(function(k){rows.push([k,typeof t.params[k]==="number"?fmt(t.params[k],4).replace(/\.?0+$/,""):t.params[k]])});
+  h+=table(["Parametro","Valor"],rows.map(function(x){return {cells:x}}));
+  $("detail").innerHTML=h;
+}
+/* ---------- Coordenadas paralelas ---------- */
+var PAR_KEYS=[];
+function parKeys(){
+  var keys=["window_s","size_kb","mops"],seen={};
+  T.forEach(function(t){Object.keys(t.params).forEach(function(k){if(typeof t.params[k]==="number"&&!seen[k]){seen[k]=1;keys.push(k)}})});
+  keys.push("value");
+  return keys.filter(function(k){var r=range(k);return r[1]>r[0]});
+}
+function parallelSummary(){ if($("tab_explorer").classList.contains("on"))drawParallel() }
+function drawParallel(){
+  var arr=T.filter(function(t){return visible(t)&&done(t)&&reasons(t).length===0});
+  var gd=$("ch_par");
+  if(!arr.length){Plotly.purge(gd);gd.innerHTML='<p class="mut">Sin trials que cumplan los limites.</p>';gd._wired=false;return}
+  PAR_KEYS=parKeys();
+  var dims=PAR_KEYS.map(function(k){
+    var d={label:(LABELS[k]||k),values:arr.map(function(t){var v=val(t,k);return v===null?0:v})};
+    if(S.ranges[k]&&S.ranges[k].length)d.constraintrange=S.ranges[k].length===1?S.ranges[k][0]:S.ranges[k];
+    return d;
+  });
+  var vs=arr.map(function(t){return t.value});
+  Plotly.react(gd,[{type:"parcoords",line:{color:vs,colorscale:"Viridis",showscale:true,cmin:Math.min.apply(null,vs),cmax:Math.max.apply(null,vs)},dimensions:dims}],{height:400,margin:{t:40,l:50,r:50,b:20}},CFG);
+  if(!gd._wired){gd._wired=true;gd.on("plotly_restyle",function(ev){
+    if(!ev||!ev[0])return;
+    Object.keys(ev[0]).forEach(function(key){
+      var m=/dimensions\[(\d+)\]\.constraintrange/.exec(key);if(!m)return;
+      var k=PAR_KEYS[+m[1]],v=ev[0][key];
+      if(v&&v[0]!==undefined){S.ranges[k]=Array.isArray(v[0])?(Array.isArray(v[0][0])?v[0]:v):[v]; if(!Array.isArray(S.ranges[k][0]))S.ranges[k]=[S.ranges[k]]}else delete S.ranges[k];
+    });
+    S.ranges=cleanRanges(S.ranges);
+    refresh("noPar");
+  })}
+}
+function cleanRanges(r){
+  var o={};Object.keys(r).forEach(function(k){
+    var v=r[k];if(v&&v.length&&Array.isArray(v[0])&&typeof v[0][0]==="number")o[k]=v;
+  });return o;
+}
+
+/* ---------- Rendimiento ---------- */
+function sources(){
+  var s=[];
+  if(E)s.push(["test","Test independiente (data/test)",E.summary.segment,E.summary.labels||LB]);
+  if(D.internal.keras)s.push(["keras","Validacion interna (Keras)",D.internal.keras,LB]);
+  if(D.internal.tflite)s.push(["tflite","Validacion interna (TFLite)",D.internal.tflite,LB]);
+  return s;
+}
+function curSrc(){var v=$("sel_src").value;return sources().filter(function(s){return s[0]===v})[0]}
+function perf(){
+  var src=curSrc();
+  if(!src){$("kp_perf").innerHTML='<div class="note">Este run no tiene metricas guardadas.</div>';return}
+  var m=src[2],lab=src[3];
+  $("src_note").textContent=src[0]==="test"?"Datos que el modelo no vio durante el entrenamiento ni la busqueda.":"Particion de validacion usada durante el entrenamiento (puede ser optimista).";
+  var ci=E&&src[0]==="test"?E.summary.bootstrap_ci_95:null;
+  var fm=E&&src[0]==="test"?E.summary.file:null;
+  $("kp_perf").innerHTML=
+    kpi("Accuracy",pct(m.accuracy),ci?"IC95% "+pct(ci.accuracy[0])+" - "+pct(ci.accuracy[1]):"")+
+    kpi("F1 macro",pct(m.f1_macro),ci?"IC95% "+pct(ci.f1_macro[0])+" - "+pct(ci.f1_macro[1]):"")+
+    kpi("Precision macro",pct(m.precision_macro))+kpi("Recall macro",pct(m.recall_macro))+
+    (fm?kpi("Accuracy por fichero",pct(fm.accuracy),"F1 macro "+pct(fm.f1_macro)):"")+
+    (m.roc_auc_macro?kpi("AUC macro",fmt(m.roc_auc_macro,3)):"");
+  var cm=m.confusion_matrix,norm=$("c_norm").checked;
+  var z=cm.map(function(r){var s=r.reduce(function(a,b){return a+b},0)||1;return norm?r.map(function(v){return Math.round(1000*v/s)/10}):r});
+  Plotly.react("ch_cm",[{type:"heatmap",z:z,x:lab,y:lab,colorscale:"Blues",text:cm,texttemplate:norm?"%{z}%":"%{z}",hovertemplate:"Real %{y}<br>Predicho %{x}<br>%{z} (n=%{text})<extra></extra>",showscale:false}],
+    {height:430,margin:{t:10,l:130,r:10,b:110},xaxis:{title:"Predicho",tickangle:-35},yaxis:{title:"Real",autorange:"reversed"}},CFG);
+  var rep=m.report||{};
+  var cls=lab.filter(function(l){return rep[l]});
+  Plotly.react("ch_cls",["precision","recall","f1-score"].map(function(k,i){return {type:"bar",name:k,x:cls,y:cls.map(function(c){return rep[c][k]}),marker:{color:["#2563eb","#16a34a","#f59e0b"][i]}}}),
+    {height:430,barmode:"group",margin:{t:10,l:40,r:10,b:110},yaxis:{range:[0,1]},xaxis:{tickangle:-35},legend:{orientation:"h",y:1.08}},CFG);
+  $("op_card").style.display=E&&E.predictions&&src[0]==="test"?"":"none";
+  $("worst_card").style.display=E&&E.predictions?"":"none";
+  if(E&&E.predictions)operating();
+}
+var OPC=null;
+function opData(){
+  var P=E.predictions,labs=P.labels,ni=labs.indexOf($("sel_normal").value);
+  var level=$("sel_level").value;
+  var rows=[];
+  if(level==="seg"){
+    P.probs.forEach(function(p,i){rows.push({t:P.seg_true[i],pn:1-p[ni],p:p})});
+  }else{
+    var acc={};
+    P.probs.forEach(function(p,i){var f=P.seg_file[i];if(!acc[f])acc[f]={n:0,s:p.map(function(){return 0}),t:P.seg_true[i]};acc[f].n++;p.forEach(function(v,j){acc[f].s[j]+=v})});
+    Object.keys(acc).forEach(function(f){var a=acc[f];var p=a.s.map(function(v){return v/a.n});rows.push({t:a.t,pn:1-p[ni],p:p})});
+  }
+  return {rows:rows,ni:ni,labs:labs};
+}
+function rates(o,thr){
+  var nN=0,fa=0,nF=0,det=0,byc={};
+  o.rows.forEach(function(r){
+    var alarm=r.pn>=thr;
+    if(r.t===o.ni){nN++;if(alarm)fa++}
+    else{nF++;if(alarm)det++;byc[r.t]=byc[r.t]||[0,0];byc[r.t][0]++;if(alarm)byc[r.t][1]++}
+  });
+  return {fa:nN?fa/nN:0,det:nF?det/nF:0,nN:nN,nF:nF,byc:byc};
+}
+function operating(){
+  var o=opData(),thr=S.thr;
+  $("v_thr").textContent=fmt(thr,2);
+  var r=rates(o,thr);
+  var xs=[],fas=[],dets=[],best=null;
+  for(var i=1;i<=99;i++){var t=i/100,q=rates(o,t);xs.push(t);fas.push(q.fa);dets.push(q.det);if(q.fa<=S.fa&&(!best||q.det>best.det))best={t:t,det:q.det,fa:q.fa}}
+  var okFa=r.fa<=S.fa;
+  $("kp_op").innerHTML=
+    kpi("Falsas alarmas",pct(r.fa),"limite "+pct(S.fa)+" - "+r.nN+" muestras normales",okFa?"ok":"bad")+
+    kpi("Fallos detectados",pct(r.det),r.nF+" muestras con fallo")+
+    kpi("Veredicto",okFa?"Cumple":"No cumple","falsas alarmas frente al limite",okFa?"ok":"bad")+
+    kpi("Mejor umbral factible",best?fmt(best.t,2):"ninguno",best?"detecta "+pct(best.det)+" con "+pct(best.fa)+" de falsas alarmas":"ningun umbral respeta el limite",best?"ok":"bad");
+  Plotly.react("ch_op",[
+    {type:"scatter",mode:"lines",name:"Falsas alarmas",x:xs,y:fas,line:{color:"#dc2626"}},
+    {type:"scatter",mode:"lines",name:"Fallos detectados",x:xs,y:dets,line:{color:"#16a34a"}},
+    {type:"scatter",mode:"markers",name:"Umbral actual",x:[thr,thr],y:[r.fa,r.det],marker:{size:11,color:["#dc2626","#16a34a"],line:{width:2,color:"#111"}}}],
+    {height:360,margin:{t:10,l:50,r:10,b:45},xaxis:{title:"Umbral de alarma (P no-normal)"},yaxis:{range:[0,1],tickformat:".0%"},legend:{orientation:"h",y:1.1},
+     shapes:[{type:"line",xref:"paper",x0:0,x1:1,y0:S.fa,y1:S.fa,line:{color:"#dc2626",dash:"dash"}}]},CFG);
+  var cs=Object.keys(r.byc).map(Number);
+  Plotly.react("ch_det",[{type:"bar",x:cs.map(function(c){return o.labs[c]}),y:cs.map(function(c){return r.byc[c][1]/r.byc[c][0]}),marker:{color:"#16a34a"},text:cs.map(function(c){return r.byc[c][1]+"/"+r.byc[c][0]}),hovertemplate:"%{x}: %{text}<extra></extra>"}],
+    {height:360,margin:{t:10,l:50,r:10,b:100},title:{text:"Deteccion por tipo de fallo",font:{size:13}},yaxis:{range:[0,1],tickformat:".0%"},xaxis:{tickangle:-35}},CFG);
+}
+function worst(){
+  if(!E||!E.predictions)return;
+  var P=E.predictions,acc={};
+  P.probs.forEach(function(p,i){
+    var f=P.seg_file[i];acc[f]=acc[f]||{n:0,bad:0,t:P.seg_true[i],c:{}};
+    var pred=p.indexOf(Math.max.apply(null,p));acc[f].n++;
+    if(pred!==P.seg_true[i]){acc[f].bad++;acc[f].c[pred]=(acc[f].c[pred]||0)+1}
+  });
+  var arr=Object.keys(acc).map(function(f){return {f:P.files[f],a:acc[f]}}).filter(function(x){return x.a.bad>0}).sort(function(a,b){return b.a.bad/b.a.n-a.a.bad/a.a.n||b.a.bad-a.a.bad}).slice(0,25);
+  $("tbl_worst").innerHTML=table(["Fichero","Clase real","Segmentos mal","Confundido con"],arr.map(function(x){
+    var top=Object.keys(x.a.c).sort(function(a,b){return x.a.c[b]-x.a.c[a]})[0];
+    return {cells:[esc(x.f.length>60?x.f.slice(0,57)+"...":x.f),P.labels[x.a.t]||"?",x.a.bad+"/"+x.a.n,top!==undefined?P.labels[top]:"-"]};
+  }));
+}
+
+/* ---------- Parametros / Datos / Resumen ---------- */
+function params(){
+  var im=D.importances,dm=D.dsp_importances;
+  var tr=[];
+  function bar(o,name,color){var k=Object.keys(o).sort(function(a,b){return o[a]-o[b]});return {type:"bar",orientation:"h",name:name,y:k,x:k.map(function(x){return o[x]}),marker:{color:color}}}
+  if(Object.keys(im).length)tr.push(bar(im,D.best_phase==="net"?"Fase 2 (red)":"Busqueda","#2563eb"));
+  if(Object.keys(dm).length)tr.push(bar(dm,"Fase 1 (DSP)","#f59e0b"));
+  if(tr.length)Plotly.react("ch_imp",tr,{height:Math.max(320,18*(Object.keys(im).length+Object.keys(dm).length)+60),margin:{t:10,l:120,r:10,b:30},barmode:"group",legend:{orientation:"h",y:1.05}},CFG);
+  else $("ch_imp").innerHTML='<p class="mut">Sin importancias (pocos trials).</p>';
+  var sel=$("sel_p");
+  if(!sel.options.length){var seen={};T.forEach(function(t){Object.keys(t.params).forEach(function(k){if(typeof t.params[k]==="number"&&!seen[k]){seen[k]=1;var o=document.createElement("option");o.value=k;o.textContent=k;sel.appendChild(o)}})});sel.addEventListener("change",paramScatter)}
+  paramScatter();
+  var F=D.final||{};
+  $("tbl_mfe").innerHTML=(F.mfe_blocks||[]).length?table(["Bloque","frame_length","frame_stride","filtros","FFT","f. min","f. max","ruido dB"],F.mfe_blocks.map(function(b,i){return {cells:[i+1,b.frame_length,b.frame_stride,b.n_filters,b.fft_length,b.low_freq,b.high_freq,b.noise_floor_db]}})):"-";
+  var mp=F.model_params||{};
+  $("tbl_net").innerHTML=Object.keys(mp).length?table(["Parametro","Valor"],Object.keys(mp).map(function(k){return {cells:[k,typeof mp[k]==="number"?fmt(mp[k],5).replace(/\.?0+$/,""):mp[k]]}})):'<p class="mut">Sin parametros de red guardados en la configuracion.</p>';
+}
+function paramScatter(){
+  var k=$("sel_p").value;if(!k)return;
+  var arr=T.filter(function(t){return visible(t)&&done(t)&&t.params[k]!==undefined});
+  Plotly.react("ch_param",[{type:"scattergl",mode:"markers",x:arr.map(function(t){return t.params[k]}),y:arr.map(function(t){return t.value}),
+    marker:{size:9,color:arr.map(function(t){return feasible(t)?"#16a34a":"#f87171"})},text:arr.map(function(t){return "Trial "+t.n}),hovertemplate:"%{text}<br>"+k+"=%{x}<br>precision %{y:.3f}<extra></extra>"}],
+    {height:340,margin:{t:10,l:55,r:10,b:45},xaxis:{title:k},yaxis:{title:"Precision validacion"}},CFG);
+}
+function data(){
+  var tp=D.train_per_class||{},te=E?E.summary.files_by_class:{};
+  var cl=Object.keys(tp).length?Object.keys(tp):LB;
+  Plotly.react("ch_files",[{type:"bar",name:"Entrenamiento (todos los datos)",x:cl,y:cl.map(function(c){return tp[c]||0}),marker:{color:"#2563eb"}},
+    {type:"bar",name:"Test",x:cl,y:cl.map(function(c){return te[c]||0}),marker:{color:"#16a34a"}}],
+    {height:340,barmode:"group",margin:{t:10,l:45,r:10,b:100},xaxis:{tickangle:-35},legend:{orientation:"h",y:1.1}},CFG);
+  if(E){var sc=E.summary.seconds_by_class,sg=E.summary.segments_by_class,c2=Object.keys(sc);
+    Plotly.react("ch_secs",[{type:"bar",name:"Segundos",x:c2,y:c2.map(function(c){return sc[c]}),marker:{color:"#f59e0b"}},{type:"bar",name:"Segmentos",x:c2,y:c2.map(function(c){return sg[c]}),marker:{color:"#7c3aed"}}],
+      {height:340,barmode:"group",margin:{t:10,l:45,r:10,b:100},xaxis:{tickangle:-35},legend:{orientation:"h",y:1.1}},CFG);
+  }else $("ch_secs").innerHTML='<p class="mut">Run sin evaluacion de test (ejecuta invoke evaluate y regenera).</p>';
+  var tot=Object.keys(tp).reduce(function(a,c){return a+tp[c]},0),mx=Object.keys(tp).sort(function(a,b){return tp[b]-tp[a]})[0];
+  $("data_note").textContent=tot&&mx?"Clase mayoritaria: "+mx+" ("+pct(tp[mx]/tot)+" de "+tot+" ficheros). Con clases muy desbalanceadas conviene mirar recall y F1 por clase, no solo la accuracy.":"";
+}
+function summaryTab(){
+  var src=sources()[0],m=src?src[2]:null,best=T.filter(done).sort(function(a,b){return b.value-a.value})[0];
+  var F=D.final,verdict=E&&E.summary.verdict;
+  $("kp_sum").innerHTML=
+    kpi("Accuracy ("+(src?src[0]==="test"?"test":"valid.":"-")+")",m?pct(m.accuracy):"-","F1 macro "+(m?pct(m.f1_macro):"-"))+
+    kpi("Tamano TFLite",F.tflite_kb?fmt(F.tflite_kb,0)+" KB":"-","cuantizacion "+D.meta.quantization)+
+    kpi("Ventana",fmt(F.window_s,2)+" s","longitud del audio por decision")+
+    kpi("Trials",T.length,D.meta.search_mode?"modo: "+D.meta.search_mode:"")+
+    kpi("Mejor trial (valid.)",best?pct(best.value):"-",best?"trial "+best.n:"");
+  $("final_card").innerHTML=table(["Dato","Valor"],[
+    ["Proyecto",esc(D.meta.project+" / "+D.meta.turbine+" / "+D.meta.data_version)],["Run",esc(D.meta.run)],
+    ["Clases",LB.length+": "+esc(LB.join(", "))],["Generado",D.meta.generated],
+    ["Evaluacion test",E?"incluida ("+E.summary.n_files+" ficheros, "+E.summary.n_segments+" segmentos)":"no disponible"]].map(function(x){return {cells:x}}));
+  $("help").innerHTML='<ul style="margin:0;padding-left:18px"><li><b>Explorador</b>: cada punto es una combinacion probada de parametros. Verde = cumple tus limites; rojo = buena o no, pero no factible.</li><li><b>Limites</b> (panel izquierdo): ventana (latencia), tamano del modelo y computo son <i>estimaciones</i> calculadas a partir de los parametros.</li><li><b>Rendimiento</b>: matriz de confusion y el punto de operacion (umbral) para equilibrar falsas alarmas y fallos detectados.</li><li>La precision de los trials es de <i>validacion</i>; la de test es la fiable para comparar.</li></ul>';
+  if(D.history&&D.history.loss){
+    var h=D.history,x=h.loss.map(function(_,i){return i+1}),tr=[];
+    Object.keys(h).filter(function(k){return k!=="lr"}).forEach(function(k){tr.push({type:"scatter",mode:"lines",name:k,x:x,y:h[k],yaxis:k.indexOf("acc")>=0?"y2":"y",line:{dash:k.indexOf("val_")===0?"dot":"solid"}})});
+    Plotly.react("ch_hist",tr,{height:300,margin:{t:10,l:50,r:50,b:40},xaxis:{title:"Epoca"},yaxis:{title:"Loss"},yaxis2:{title:"Accuracy",overlaying:"y",side:"right",range:[0,1]},legend:{orientation:"h",y:1.15}},CFG);
+  }else $("ch_hist").innerHTML='<p class="mut">Sin historial.</p>';
+}
+
+/* ---------- Refresco y arranque ---------- */
+function refresh(what){
+  if(T.length){
+    if(what!=="op"){explorer();paramScatter()}
+    if(what==="all"||what==="noPar"){drawParallelIfAll(what)}
+  }
+  if(what==="all"||what==="op")if(E&&E.predictions&&$("op_card").style.display!=="none")operating();
+}
+function drawParallelIfAll(what){if(what==="all"&&$("tab_explorer").classList.contains("on"))drawParallel()}
+
+function init(){
+  $("hmeta").textContent=D.meta.path+" · generado "+D.meta.generated;
+  tabs();setup();
+  var opts=NUMKEYS.filter(function(k){return range(k[0])[1]>range(k[0])[0]||k[0]==="value"});
+  var seen={};T.forEach(function(t){Object.keys(t.params).forEach(function(k){if(typeof t.params[k]==="number"&&!seen[k]){seen[k]=1;opts.push([k,k])}})});
+  ["sel_x","sel_y"].forEach(function(id,i){var s=$(id);opts.forEach(function(o){var e=document.createElement("option");e.value=o[0];e.textContent=o[1];s.appendChild(e)});s.value=i?"value":(range("size_kb")[1]>range("size_kb")[0]?"size_kb":"window_s");s.addEventListener("change",function(){scatterSel()})});
+  var ss=$("sel_src");sources().forEach(function(s){var o=document.createElement("option");o.value=s[0];o.textContent=s[1];ss.appendChild(o)});
+  ss.addEventListener("change",perf);$("c_norm").addEventListener("change",perf);
+  if(E&&E.predictions){
+    var sn=$("sel_normal");E.predictions.labels.forEach(function(l){var o=document.createElement("option");o.value=l;o.textContent=l;sn.appendChild(o)});
+    sn.value=E.predictions.labels.indexOf("Good")>=0?"Good":E.predictions.labels[0];
+    sn.addEventListener("change",operating);$("sel_level").addEventListener("change",operating);
+    $("s_thr").addEventListener("input",function(e){S.thr=+e.target.value;operating()});
+    worst();
+  }
+  if(!T.length){$("tab_explorer").innerHTML='<div class="note">Este run no tiene estudio Optuna guardado: no hay combinaciones que explorar.</div>'}
+  summaryTab();perf();params();data();
+  if(T.length)explorer();
+}
+init();
+})();
+</script>
+</body>
+</html>
