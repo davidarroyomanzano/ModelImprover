@@ -1,0 +1,30 @@
+# Fuente única de verdad del DSP (entrenamiento == firmware).
+# Ajustar contra dsp_TEMPLATE_STANDARD.py.
+version: "1.0"
+sample_rate: 16000
+clip_duration: 1.0
+frame_length: 512
+hop_length: 256
+n_fft: 512
+window: hann               # hann | hamming | rect
+pre_emphasis: 0.97         # 0.0 desactiva
+n_mels: 40
+n_mfcc: 13
+fmin: 20.0
+fmax: 8000.0
+log_offset: 0.000001
+rolloff_percent: 0.85
+n_ceps: 3                  # coeficientes de la feature cepstral
+clipping_threshold: 0.999  # |x| >= umbral cuenta como muestra saturada
+mode: sequence             # sequence (frames x features) | aggregate (estadísticos)
+features: [mfe]            # mfe (usa mfe_blocks, no combinable), mfcc, log_mel, rms, zcr, spectral_centroid, spectral_bandwidth, spectral_rolloff, spectral_flatness,
+                           # spectral_rolloff95, spectral_entropy, spectral_skewness, spectral_kurtosis, clipping, peak_to_rms, crest_factor,
+                           # energy_variance, harmonic, modulation, cepstral, tkeo
+stats: [mean, std]         # solo en mode=aggregate: mean, std, min, max, median
+# Rama auxiliar: features agregadas en un vector con los estadísticos de aux_stats.
+aux_features: [rms, zcr, spectral_centroid, spectral_bandwidth, spectral_rolloff, spectral_flatness, clipping, harmonic, modulation, cepstral, energy_variance]
+aux_stats: [mean, std]
+# Bancos MFE (features=mfe). Tiempos en s, frecuencias en Hz. Se apilan en el eje temporal.
+mfe_blocks:
+  - {frame_length: 0.03, frame_stride: 0.015, n_filters: 32, fft_length: 512, low_freq: 2000, high_freq: 8000, noise_floor_db: -50}   # banda alta
+  - {frame_length: 0.03, frame_stride: 0.015, n_filters: 32, fft_length: 512, low_freq: 50, high_freq: 2000, noise_floor_db: -50}     # banda baja

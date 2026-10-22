@@ -1,0 +1,24 @@
+# Overrides para una ejecución rápida de verificación (smoke run) con data/raw.
+# Copia estos valores sobre config.yaml / optuna.yaml (o haz merge si config.py lo soporta).
+# Ajusta los nombres de las claves a los usados en tus YAML.
+training:
+  epochs: 3
+  batch_size: 4
+  # Con clases de solo 2 muestras, un split estratificado puede fallar.
+  val_size: 0.3
+  stratify: false
+optuna:
+  n_trials: 2
+  n_jobs: 1
+  timeout: 300
+smoke:
+  min_samples_per_class: 2
+  expected_labels:
+    - Good
+    - Stopped
+    - Hydraulic_charge_start
+    - Hydraulic_charge_stop
+    - Impacts_hub
+    - Impacts_pitch
+    - Impacts_yaw
+    - Tendon_rupture

@@ -1,0 +1,21 @@
+# Perfil PinBolt: reproduce templates/dsp_template.py (MFE aplanado + 25 features auxiliares).
+# Uso: DS_DSP_CONFIG=configs/dsp_pinbolt.yaml invoke train   y después   invoke export
+version: "1.0"
+profile: pinbolt
+sample_rate: 16000
+clip_duration: 0.9
+pre_emphasis: 0.98
+zero_padding: false
+n_filters_final: 0          # 0 = n_filters del primer bloque (Reshape de la red: (N_FRAMES, N_FILTERS_FINAL))
+mode: sequence
+features: [mfe]
+aux_features: []            # las 25 features auxiliares las calcula el perfil
+# Campos de la rama por defecto (sin efecto en el perfil pinbolt, pero validados)
+frame_length: 512
+hop_length: 256
+n_fft: 512
+fmin: 20.0
+fmax: 8000.0
+mfe_blocks:
+  - {frame_length: 0.025, frame_stride: 0.400, n_filters: 8, fft_length: 2048, low_freq: 550, high_freq: 3350, noise_floor_db: -30}
+  - {frame_length: 0.140, frame_stride: 0.100, n_filters: 128, fft_length: 2048, low_freq: 50, high_freq: 6400, noise_floor_db: -44}

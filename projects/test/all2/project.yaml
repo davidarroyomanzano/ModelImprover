@@ -1,0 +1,2 @@
+# Overlay del proyecto test_all2: se superpone a configs/*.yaml.
+# Secciones admitidas: paths, data, train, export, storage, optuna, dsp.

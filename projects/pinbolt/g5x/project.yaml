@@ -1,0 +1,4 @@
+# Overlay del proyecto pinbolt_g5x: se superpone a configs/*.yaml.
+# Secciones admitidas: paths, data, train, export, storage, optuna, dsp.
+optuna:
+  strategy: two_phase

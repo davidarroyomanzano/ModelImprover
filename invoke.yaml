@@ -1,0 +1,3 @@
+run:
+  # En Windows el hilo que reenvía stdin falla (OSError 22) cuando el subproceso ya terminó.
+  in_stream: false

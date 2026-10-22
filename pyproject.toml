@@ -1,0 +1,69 @@
+[tool.poetry]
+name = "ds-project"
+version = "0.2.0"
+description = "Clasificación de audio: DSP + features + Optuna (paralelo/GPU) + exportación TFLite"
+authors = ["Equipo DS"]
+readme = "README.md"
+packages = [{ include = "ds_project", from = "src" }]
+
+[tool.poetry.dependencies]
+python = ">=3.8,<3.12"
+numpy = ">=1.21,<1.25"
+scipy = ">=1.7"
+scikit-learn = ">=1.0"
+pyyaml = ">=6.0"
+python-dotenv = ">=1.0"
+soundfile = ">=0.12"
+joblib = ">=1.2"
+matplotlib = ">=3.5"
+optuna = ">=3.4"
+tensorflow = "2.13.1"
+boto3 = { version = ">=1.26", optional = true }
+msal = { version = ">=1.20", optional = true }
+requests = ">=2.28"
+invoke = ">=2.0"
+tensorflow-io-gcs-filesystem = "0.31.0"
+streamlit = { version = ">=1.37,<1.40", optional = true, python = ">=3.8,!=3.9.7" }
+pyarrow = { version = ">=7,<18", optional = true }  # >=18 exige NumPy 2 (incompatible con TF 2.13)
+
+plotly = { version = ">=5.18,<6", optional = true }
+
+[tool.poetry.extras]
+cloud = ["boto3", "msal"]
+ui = ["streamlit", "pyarrow"]
+dashboard = ["plotly"]
+
+[tool.poetry.group.dev.dependencies]
+pytest = ">=7.0"
+pytest-cov = ">=4.0"
+ruff = "0.4.4"
+pre-commit = ">=3.0"
+librosa = ">=0.10"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+norecursedirs = ["projects", "export", "templates", "models", "reports", "data", "notebooks", ".venv"]
+pythonpath = ["src"]
+markers = [
+  "gpu: tests que requieren GPU (excluidos en CI)",
+  "slow: tests lentos (TensorFlow/Optuna)",
+]
+addopts = "-m 'not gpu'"
+filterwarnings = [
+"ignore::pyparsing.exceptions.PyparsingDeprecationWarning",
+"ignore:Statistics for quantized inputs were expected.*",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py38"
+src = ["src", "tests"]
+extend-exclude = ["projects", "templates", "export", "models", "reports", "data", "notebooks"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["UP006", "UP007", "UP035"]
+
+[build-system]
+requires = ["poetry-core>=1.5.0"]
+build-backend = "poetry.core.masonry.api"
